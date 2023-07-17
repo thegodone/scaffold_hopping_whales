@@ -11,7 +11,9 @@
 #   "Scaffold hopping from natural products to synthetic mimetics by holistic molecular similarity", 
 #   Nature Communications Chemistry 1, 44, 2018.
 # ======================================================================================================================
-
+# This version of the code was simplified and vectorized by Guillaume Godin July 2023, dsm-firmenich, Geneva
+# it works on numpy 3.9
+# ======================================================================================================================
 import time
 
 import numpy as np
@@ -79,7 +81,7 @@ def do_lcd(coords, w, thr):
     """
 
     # calculates lcm with weight scheme 1 (all charges)
-    res = lcm.lmahal(coords, w)
+    res = lcm.lmahal_vect(coords, w)
 
     # applies sign
     res = apply_sign(w, res, thr)
