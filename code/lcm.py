@@ -14,10 +14,59 @@
 #   "Scaffold hopping from natural products to synthetic mimetics by holistic molecular similarity", 
 #   Nature Communications Chemistry 1, 44, 2018.
 # ======================================================================================================================
+# This version of the code was simplified and vectorized by Guillaume Godin July 2023, dsm-firmenich, Geneva
+# it works on numpy 3.9
+# ======================================================================================================================
 import numpy as np
 
+def docov_vect(x, w):
+    n, p = x.shape 
+    
+    cov = np.zeros((n, p, p))
 
-def lmahal(x, w):
+    type_w = 1 
+    
+    den = np.sum(np.abs(w)) if type_w == 1 else (n-1)
+    
+    w_abs = np.abs(w) / den
+    x_diff = x[:, np.newaxis, :] - x[np.newaxis, :, :]
+    x_diff_square = x_diff[:, :, np.newaxis, :] * x_diff[:, :, :, np.newaxis]
+    
+    # caution we need to do it like this!
+    w_x_diff_square = w_abs[np.newaxis, :, np.newaxis, np.newaxis] *  x_diff_square
+    # we have an extra first dimension do to the w_abs expension just remove it by taking the first element off
+    cov = np.sum(w_x_diff_square, axis=1)[0]
+
+    return cov
+
+def domahal_vectorized(x, cov_dict):
+    """
+    Vectorized function for calculating the atom centred Mahalanobis distance
+    between all pairs of atoms when the covariance is given as a dictionary.
+    """
+    n, p = x.shape  # matrix dimensions
+    dist = np.empty((n, n))
+    for j in range(n):
+        res = x - x[j, :]
+        pinv_cov_j = np.linalg.pinv(cov_dict[(j, 1)])
+        dist[:, j] = np.einsum('ij,ij->i', np.dot(res, pinv_cov_j), res)
+    return dist/p
+
+def domahal_vectorized_vect(x, cov):
+    """
+    Vectorized function for calculating the atom centred Mahalanobis distance
+    between all pairs of atoms when the covariance is given as a dictionary.
+    """
+    n, p = x.shape  # matrix dimensions
+    dist = np.empty((n, n))
+    for j in range(n):
+        res = x - x[j, :]
+        pinv_cov_j = np.linalg.pinv(cov[j])
+        dist[:, j] = np.einsum('ij,ij->i', np.dot(res, pinv_cov_j), res)
+    return dist/p
+
+
+def lmahal_vect(x, w):
     """
     main function for calculating the atom-centred mahalanobis distance (ACM), used to compute remoteness and
     isolation degree.
@@ -37,103 +86,20 @@ def lmahal(x, w):
     """
 
     # preliminary
-    n, p = x.shape  # matrix dimensions
-
     if len(w) > 0:   # checks whether at least one atom was included
-        dist = np.zeros((n, n))  # pre allocation (LCM)
-
         # do covariance centred on each sample
-        cov = docov(x, w)
-
-        # calculate distance
-        for i in range(n):
-            for j in range(n):
-                d = domahal(i, j, x, cov)
-                dist[i, j] = d / p
-
+        cov = docov_vect(x, w)
+        dist_vect = domahal_vectorized_vect(x, cov)
         # isolation and remoteness parameters from D
-        isol, rem, ir_ratio = is_rem(dist, n)   # calculates atomic parameters from the distance
-        res = np.concatenate((rem, isol, ir_ratio), axis=1)   # results concatenation
+        res = is_rem(dist_vect) 
     else:
         res = np.full((1, 3), -999.0)   # sets missing values
 
     return res
 
-
-# ----------------------------------------------------------------------------------------------------------------------
-def docov(x, w):
-    """
-    Calculates the weighted covariance matrix centered on each atom. The original centred covariance (Todeschini et al.
-    2013) is weighted according to the atomic partial charges (normalized absolute values).
-
-    ====================================================================================================================
-    :param
-    x(n_at x 3): molecular 3D coordinate matrix
-    w(n_at x 1): molecular property to consider
-    :returns
-    cov(n_at x n_at): weighted atomic centred covariance
-    ====================================================================================================================
-    Francesca Grisoni, 12/2016, v. alpha
-    ETH Zurich
-    """
-
-    import numpy as np
-    n, p = x.shape  # dimensions
-    cov = {}  # pre allocation
-    samp_v = np.zeros((p, p))  # init
-
-    type_w = 1   # if 1, it normalizes according to the total sum of weights
-
-    # normalizes partial charges
-    if type_w == 2:
-        den = (n-1)
-    else:
-        den = sum(abs(w))
-        if den is 0:
-            den = n-1
-
-    w_abs = abs(w)/den
-
-    for i in range(n):
-        for j in range(p):
-            for k in range(p):
-                cvhere = 0
-                for s in range(n):
-                    cvhere += w_abs[s] * (x[s, j] - x[i, j]) * (x[s, k] - x[i, k])
-                samp_v[j, k] = cvhere
-        cov[i, 1] = samp_v
-        samp_v = np.zeros((p, p))   # re-init
-
-    return cov
 # ----------------------------------------------------------------------------------------------------------------------
 
-
-def domahal(i, j, x, cov):
-    """
-    Calculates the atom centred Mahalanobis distance between two atoms i and j when the covariance is centered in j.
-    ====================================================================================================================
-    :param
-    i, j: atoms whose distance has to be computed (when the covariance is centred in j)
-    cov: centred covariance
-    :return
-    d: distance between i and j (centered in j)
-    ====================================================================================================================
-    Francesca Grisoni, 12/2016, v. alpha
-    ETH Zurich
-    """
-    import numpy as np
-
-    sv = np.linalg.pinv(cov[j, 1])   # pseudo inverse of covariance
-    res = x[i, :] - x[j, :]
-    d1 = np.dot(res, sv)   # first part of the matrix product
-    d = np.dot(d1, res[np.newaxis, :].T)   # transpose and product # TODO write it better
-
-    return d
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-def is_rem(dist, n):  # TODO remove n and calculate it here
+def is_rem(dist): 
     """
     Calculates isolation degree and remoteness from a distance matrix and their ratio.
     ====================================================================================================================
@@ -148,14 +114,13 @@ def is_rem(dist, n):  # TODO remove n and calculate it here
     Francesca Grisoni, 12/2016, v. alpha
     ETH Zurich
     """
+    
+    np.fill_diagonal(dist, np.nan)
 
-    for i in range(n):
-        dist[i, i] = None
+    isol = np.nanmin(dist, axis=0, keepdims=True).T  # col minimum (transposed for dimensions)
+    rem = np.nanmean(dist, axis=1, keepdims=True)  # row average (what if it is zero mean ???)
+    ir_ratio = isol / rem  # ratio between isol and rem (transpose for dimensions)
 
-    dist = np.matrix(dist)
-    isol = np.transpose(np.nanmin(dist, axis=0))  # col minimum (transposed for dimensions)
-    rem = np.nanmean(dist, axis=1)  # row average
-    ir_ratio = isol/rem  # ratio between isol and rem (transpose for dimensions)
+    res = np.hstack((rem, isol, ir_ratio))  # results concatenation
 
-    return isol, rem, ir_ratio
-
+    return res
