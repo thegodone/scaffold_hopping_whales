@@ -52,18 +52,25 @@ def domahal_vectorized(x, cov_dict):
         dist[:, j] = np.einsum('ij,ij->i', np.dot(res, pinv_cov_j), res)
     return dist/p
 
+
 def domahal_vectorized_vect(x, cov):
     """
     Vectorized function for calculating the atom centred Mahalanobis distance
     between all pairs of atoms when the covariance is given as a dictionary.
     """
     n, p = x.shape  # matrix dimensions
-    dist = np.empty((n, n))
+    dist_mol = np.empty((n, n))
+    
+    # list of pinv_cov computations for a 3d array in the first dimension.
+    pinv_cov_mol = np.array([np.linalg.pinv(cov_a) for cov_a in cov])
+  
+      
     for j in range(n):
-        res = x - x[j, :]
-        pinv_cov_j = np.linalg.pinv(cov[j])
-        dist[:, j] = np.einsum('ij,ij->i', np.dot(res, pinv_cov_j), res)
-    return dist/p
+        res_atom = x - x[j, :]
+        res_dot_pinv_atom = np.dot(res_atom, pinv_cov_mol[j])
+        dist_mol[:, j] = np.einsum('ij,ij->i', res_dot_pinv_atom, res_atom)
+
+    return dist_mol / p
 
 
 def lmahal_vect(x, w):
