@@ -1,3 +1,8 @@
+# this is a vectorized version of the SHW original code with a speed up of ~40x
+main modifications are in lcm
+in the parilized code joblib also parallized calls for a given list of molecules.
+
+
 # Scaffold hopping by holistic molecular descriptors in drug design
 
 ## Preliminary steps
@@ -28,7 +33,10 @@ Move to the [code](/code) folder, where the Jupyter notebook file is contained, 
 ``
 jupyter notebook
 ``
-Click on the notebook file "virtual_screening_pipeline.jpynb". There, you will find additional information on the required calculation steps.
+Click on one notebook file "virtual_screening_pipeline.jpynb" or "virtual_screening_pipeline_parilized.jpynb". 
+There, you will find additional information on the required calculation steps.
+- virtual_screening_pipeline_parilized uses joblib
+- both notebooks using vectorized version of lcm.
 
 ## How to cite
 If you use this code or parts thereof, please cite the following papers:
