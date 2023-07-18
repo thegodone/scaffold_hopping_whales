@@ -1,4 +1,4 @@
-# this is a vectorized version of the SHW original code with a speed up of ~40x
+## Update: July 2023 - This is a vectorized version of the SHW original code with a speed up of ~40x
 main modifications are in lcm
 in the parilized code joblib also parallized calls for a given list of molecules.
 
